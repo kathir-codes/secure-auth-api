@@ -1,4 +1,5 @@
 **Secure Auth API**
+
           Signup
              ↓
           DTO Validation

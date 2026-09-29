@@ -30,9 +30,21 @@ def create_users_table():
         CREATE TABLE IF NOT EXISTS users (
             id INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
             name TEXT,
-            email TEXT,
+            email TEXT UNIQUE,
             password_hash TEXT
         )
+    """)
+
+    connection.commit()
+    connection.close()
+
+def add_email_unique_constraint():
+    connection = get_connection()
+    cursor = connection.cursor()
+
+    cursor.execute("""
+        ALTER TABLE users
+        ADD CONSTRAINT users_email_unique UNIQUE (email)
     """)
 
     connection.commit()
@@ -132,7 +144,25 @@ def update_user(user_id, name, email):
 
     connection.commit()
     connection.close()
+# ------------------------update password-----------------------------
+def update_user_password(user_id, password_hash):
 
+    connection = get_connection()
+    cursor = connection.cursor()
+
+    cursor.execute(
+        """
+        UPDATE users
+        SET password_hash = %s
+        WHERE id = %s
+        """,
+        (password_hash, user_id)
+    )
+
+    connection.commit()
+
+    cursor.close()
+    connection.close()
 
 # ------------------------- Update partial ----------------------------
 
@@ -189,3 +219,4 @@ def delete_user(user_id):
 
     connection.commit()
     connection.close()
+

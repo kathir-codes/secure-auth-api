@@ -2,6 +2,20 @@
 from http.server import HTTPServer, BaseHTTPRequestHandler
 import json
 
+from dto import (
+    SignupRequest,
+    SigninRequest,
+    UpdateUserRequest,
+    PartialUpdateUserRequest,
+    SignupResponse,
+    SigninResponse,
+    UserResponse,
+    MessageResponse,
+    UserUpdateResponse,
+    ForgotPasswordRequest,
+    ResetPasswordRequest
+)
+from pydantic import ValidationError
 from database import (
     create_users_table,
     get_all_users,
@@ -10,21 +24,79 @@ from database import (
     update_user,
     update_user_partial,
     delete_user,
-    create_signup_user
+    create_signup_user,
+    update_user_password
 )
-
-from auth_utils import hash_password, create_access_token,verify_access_token
+from auth_utils import hash_password, create_access_token,verify_access_token,create_password_reset_token, verify_password_reset_token
+   
 
 
 create_users_table()
 
 
 class MyHandler(BaseHTTPRequestHandler):
+# ----------------------------------------------------------------------------------
+    def authenticate_request(self, requested_user_id=None):
+
+        # Step 1: Get Authorization header
+        authorization = self.headers.get("Authorization")
+
+        if authorization is None:
+            self.send_response(401)
+            self.send_header("Content-Type", "application/json")
+            self.end_headers()
+            self.wfile.write(
+                b'{"error": "Authorization header is required"}'
+            )
+            return None
+
+        # Step 2: Check Bearer format
+        if not authorization.startswith("Bearer "):
+            self.send_response(401)
+            self.send_header("Content-Type", "application/json")
+            self.end_headers()
+            self.wfile.write(
+                b'{"error": "Invalid authorization format"}'
+            )
+            return None
+
+        # Step 3: Extract token
+        token = authorization.split(" ", 1)[1].strip()
+
+        # Step 4: Verify token
+        payload = verify_access_token(token)
+
+        if payload is None:
+            self.send_response(401)
+            self.send_header("Content-Type", "application/json")
+            self.end_headers()
+            self.wfile.write(
+                b'{"error": "Invalid or expired token"}'
+            )
+            return None
+
+        # Step 5: Verify ownership
+        if requested_user_id is not None:
+
+            logged_in_user_id = payload["user_id"]
+
+            if logged_in_user_id != requested_user_id:
+                self.send_response(403)
+                self.send_header("Content-Type", "application/json")
+                self.end_headers()
+                self.wfile.write(
+                    b'{"error": "Access denied"}'
+                )
+                return None
+
+        # Step 6: Return payload
+        return payload
 
     # -----------------------------------------------------------------------------------
 
     def do_GET(self):
 
+        # GET ALL USERS
         if self.path == "/users":
 
             users = get_all_users()
@@ -33,50 +105,37 @@ class MyHandler(BaseHTTPRequestHandler):
 
             for user in users:
 
-                response.append({
-                    "id": user[0],
-                    "name": user[1],
-                    "email": user[2]
-                })
+                user_response = UserResponse(
+                    id=user[0],
+                    name=user[1],
+                    email=user[2]
+                )
+
+                response.append(
+                    user_response.model_dump()
+                )
 
             response_data = json.dumps(response).encode()
 
             self.send_response(200)
-
-            self.send_header(
-                "Content-Type",
-                "application/json"
-            )
-
+            self.send_header("Content-Type", "application/json")
             self.end_headers()
 
             self.wfile.write(response_data)
 
             return
 
-        # Check whether the requested path is for a user
-
+        # GET USER BY ID
         if self.path.startswith("/users/"):
 
-            # Get user ID from URL
-
-            user_id = int(
-                self.path.split("/")[-1]
-            )
+            user_id = int(self.path.split("/")[-1])
 
             user = get_user_by_id(user_id)
-
-            # Check whether user exists
 
             if user is None:
 
                 self.send_response(404)
-
-                self.send_header(
-                    "Content-Type",
-                    "application/json"
-                )
-
+                self.send_header("Content-Type", "application/json")
                 self.end_headers()
 
                 self.wfile.write(
@@ -85,50 +144,32 @@ class MyHandler(BaseHTTPRequestHandler):
 
                 return
 
-            # Get user data
-
-            response = {
-                "id": user[0],
-                "name": user[1],
-                "email": user[2]
-            }
-
-            # Convert dictionary into JSON bytes
-
-            response_data = json.dumps(
-                response
-            ).encode()
-
-            # Send success response
-
-            self.send_response(200)
-
-            self.send_header(
-                "Content-Type",
-                "application/json"
+            response = UserResponse(
+                id=user[0],
+                name=user[1],
+                email=user[2]
             )
 
+            response_data = json.dumps(
+                response.model_dump()
+            ).encode()
+
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
             self.end_headers()
 
             self.wfile.write(response_data)
 
             return
 
-        # Handle unknown paths
-
+        # UNKNOWN URL
         self.send_response(404)
-
-        self.send_header(
-            "Content-Type",
-            "application/json"
-        )
-
+        self.send_header("Content-Type", "application/json")
         self.end_headers()
 
         self.wfile.write(
             b'{"error": "Not Found"}'
         )
-
     # -----------------------------------------------------------------------------------
 
 
@@ -152,12 +193,12 @@ class MyHandler(BaseHTTPRequestHandler):
 
             data = json.loads(body)
 
-            # Check required fields
+            # Validate request using Pydantic DTO
 
-            if (
-                "email" not in data
-                or "password" not in data
-            ):
+            try:
+                signin_request = SigninRequest(**data)
+
+            except ValidationError:
 
                 self.send_response(400)
 
@@ -173,12 +214,11 @@ class MyHandler(BaseHTTPRequestHandler):
                 )
 
                 return
-            
-            
+
             # Get user by email
 
             user = get_user_by_email(
-                data["email"]
+                signin_request.email
             )
 
             # Check whether user exists
@@ -203,7 +243,7 @@ class MyHandler(BaseHTTPRequestHandler):
             # Hash the entered password
 
             password_hash = hash_password(
-                data["password"]
+                signin_request.password
             )
 
             # Compare passwords
@@ -226,17 +266,23 @@ class MyHandler(BaseHTTPRequestHandler):
                 return
 
             # Login successful
+
             token = create_access_token(user[0])
-            response = {
-                "message": "Signin successful",
-                "id": user[0],
-                "name": user[1],
-                "email": user[2],
-                "access_token": token
-            }
+
+            # Create response DTO
+
+            response = SigninResponse(
+                message="Signin successful",
+                id=user[0],
+                name=user[1],
+                email=user[2],
+                access_token=token
+            )
+
+            # Convert Pydantic object into JSON bytes
 
             response_data = json.dumps(
-                response
+                response.model_dump()
             ).encode()
 
             self.send_response(200)
@@ -271,13 +317,12 @@ class MyHandler(BaseHTTPRequestHandler):
 
             data = json.loads(body)
 
-            # Check whether required fields exist
+            # Validate request using Pydantic DTO
 
-            if (
-                "name" not in data
-                or "email" not in data
-                or "password" not in data
-            ):
+            try:
+                signup_request = SignupRequest(**data)
+
+            except ValidationError:
 
                 self.send_response(400)
 
@@ -297,30 +342,30 @@ class MyHandler(BaseHTTPRequestHandler):
             # Hash the password
 
             password_hash = hash_password(
-                data["password"]
+                signup_request.password
             )
 
             # Create user in database
 
             user_id = create_signup_user(
-                data["name"],
-                data["email"],
+                signup_request.name,
+                signup_request.email,
                 password_hash
             )
 
-            # Create response
+            # Create response DTO
 
-            response = {
-                "message": "User signed up successfully",
-                "id": user_id,
-                "name": data["name"],
-                "email": data["email"]
-            }
+            response = SignupResponse(
+                message="User signed up successfully",
+                id=user_id,
+                name=signup_request.name,
+                email=signup_request.email
+            )
 
-            # Convert response to JSON bytes
+            # Convert Pydantic object into JSON bytes
 
             response_data = json.dumps(
-                response
+                response.model_dump()
             ).encode()
 
             # Send status
@@ -341,7 +386,186 @@ class MyHandler(BaseHTTPRequestHandler):
             self.wfile.write(response_data)
 
             return
+        
+        # ==========================================================
+        # 3. FORGOT PASSWORD
+        # ==========================================================
 
+        if self.path == "/forgot-password":
+
+
+            # Read the data sent by the client
+
+            content_length = int(
+                self.headers["Content-Length"]
+            )
+
+            body = self.rfile.read(content_length)
+
+            # Convert JSON bytes into Python dictionary
+
+            data = json.loads(body)
+
+            # Validate request using Pydantic DTO
+
+            try:
+                forgot_request = ForgotPasswordRequest(**data)
+
+            except ValidationError:
+
+                self.send_response(400)
+
+                self.send_header(
+                    "Content-Type",
+                    "application/json"
+                )
+
+                self.end_headers()
+
+                self.wfile.write(
+                    b'{"error": "Email is required"}'
+                )
+
+                return
+
+            # Find user by email
+
+            user = get_user_by_email(
+                forgot_request.email
+            )
+
+            # Generate reset token if user exists
+
+            if user is not None:
+
+                reset_token = create_password_reset_token(
+                    user[0]
+                )
+
+                # Development only: print token in server console
+
+                print("Password reset token:", reset_token)
+
+            # Send generic response
+
+            response_data = json.dumps({
+                "message": "If the account exists, a password reset link has been sent."
+            }).encode()
+
+            self.send_response(200)
+
+            self.send_header(
+                "Content-Type",
+                "application/json"
+            )
+
+            self.end_headers()
+
+            self.wfile.write(response_data)
+
+            return
+    
+        # ==========================================================
+        # 4. RESET PASSWORD
+        # ==========================================================
+
+        if self.path == "/reset-password":
+
+            # Read request body
+
+            content_length = int(
+                self.headers["Content-Length"]
+            )
+
+            body = self.rfile.read(content_length)
+
+            # Convert JSON into Python dictionary
+
+            data = json.loads(body)
+
+            # Validate request using Pydantic DTO
+
+            try:
+                reset_request = ResetPasswordRequest(**data)
+
+            except ValidationError:
+
+                self.send_response(400)
+
+                self.send_header(
+                    "Content-Type",
+                    "application/json"
+                )
+
+                self.end_headers()
+
+                self.wfile.write(
+                    b'{"error": "Token and new password are required"}'
+                )
+
+                return
+
+            # Verify reset token
+
+            payload = verify_password_reset_token(
+                reset_request.token,
+                reset_request.user_id
+        )
+
+            # Check whether token is valid
+
+            if payload is None:
+
+                self.send_response(401)
+
+                self.send_header(
+                    "Content-Type",
+                    "application/json"
+                )
+
+                self.end_headers()
+
+                self.wfile.write(
+                    b'{"error": "Invalid or expired reset token"}'
+                )
+
+                return
+
+            # Get user ID from token
+
+            user_id = payload["user_id"]
+
+            # Hash the new password
+
+            password_hash = hash_password(
+                reset_request.new_password
+            )
+
+            # Update password in database
+
+            update_user_password(
+                user_id,
+                password_hash
+            )
+
+            # Send success response
+
+            response_data = json.dumps({
+                "message": "Password reset successfully"
+            }).encode()
+
+            self.send_response(200)
+
+            self.send_header(
+                "Content-Type",
+                "application/json"
+            )
+
+            self.end_headers()
+
+            self.wfile.write(response_data)
+
+            return
 
         # ==========================================================
         # 3. UNKNOWN POST URL
@@ -364,21 +588,22 @@ class MyHandler(BaseHTTPRequestHandler):
 
     def do_PUT(self):
 
-        user_id = int(
-            self.path.split("/")[-1]
-        )
+        # Get user ID from URL
+        user_id = int(self.path.split("/")[-1])
 
+        # Authenticate request
+        payload = self.authenticate_request(user_id)
+
+        if payload is None:
+            return
+
+        # Check whether user exists
         user = get_user_by_id(user_id)
 
         if user is None:
 
             self.send_response(404)
-
-            self.send_header(
-                "Content-Type",
-                "application/json"
-            )
-
+            self.send_header("Content-Type", "application/json")
             self.end_headers()
 
             self.wfile.write(
@@ -387,28 +612,20 @@ class MyHandler(BaseHTTPRequestHandler):
 
             return
 
-        content_length = int(
-            self.headers["Content-Length"]
-        )
-
+        # Read request body
+        content_length = int(self.headers["Content-Length"])
         body = self.rfile.read(content_length)
 
         data = json.loads(body)
 
-        # Check whether name and email exist
+        # Validate request using Pydantic DTO
+        try:
+            update_request = UpdateUserRequest(**data)
 
-        if (
-            "name" not in data
-            or "email" not in data
-        ):
+        except ValidationError:
 
             self.send_response(400)
-
-            self.send_header(
-                "Content-Type",
-                "application/json"
-            )
-
+            self.send_header("Content-Type", "application/json")
             self.end_headers()
 
             self.wfile.write(
@@ -417,32 +634,27 @@ class MyHandler(BaseHTTPRequestHandler):
 
             return
 
-        # Update user
-
+        # Update user in database
         update_user(
             user_id,
-            data["name"],
-            data["email"]
+            update_request.name,
+            update_request.email
         )
 
-        response = {
-            "message": "User updated successfully",
-            "id": user_id,
-            "name": data["name"],
-            "email": data["email"]
-        }
+        # Create response DTO
+        response = UserUpdateResponse(
+            message="User updated successfully",
+            id=user_id,
+            name=update_request.name,
+            email=update_request.email
+        )
 
         response_data = json.dumps(
-            response
+            response.model_dump()
         ).encode()
 
         self.send_response(200)
-
-        self.send_header(
-            "Content-Type",
-            "application/json"
-        )
-
+        self.send_header("Content-Type", "application/json")
         self.end_headers()
 
         self.wfile.write(response_data)
@@ -452,24 +664,21 @@ class MyHandler(BaseHTTPRequestHandler):
     def do_PATCH(self):
 
         # Get user ID from URL
+        user_id = int(self.path.split("/")[-1])
 
-        user_id = int(
-            self.path.split("/")[-1]
-        )
+        # Authenticate request
+        payload = self.authenticate_request(user_id)
 
-        user = get_user_by_id(user_id)
+        if payload is None:
+            return
 
         # Check whether user exists
+        user = get_user_by_id(user_id)
 
         if user is None:
 
             self.send_response(404)
-
-            self.send_header(
-                "Content-Type",
-                "application/json"
-            )
-
+            self.send_header("Content-Type", "application/json")
             self.end_headers()
 
             self.wfile.write(
@@ -478,32 +687,38 @@ class MyHandler(BaseHTTPRequestHandler):
 
             return
 
-        # Read the data sent by the client
-
-        content_length = int(
-            self.headers["Content-Length"]
-        )
-
+        # Read request body
+        content_length = int(self.headers["Content-Length"])
         body = self.rfile.read(content_length)
-
-        # Convert JSON bytes into Python dictionary
 
         data = json.loads(body)
 
-        # Check whether at least one field is provided
+        # Validate request using Pydantic DTO
+        try:
+            update_request = PartialUpdateUserRequest(**data)
 
-        if (
-            "name" not in data
-            and "email" not in data
-        ):
+        except ValidationError:
 
             self.send_response(400)
+            self.send_header("Content-Type", "application/json")
+            self.end_headers()
 
-            self.send_header(
-                "Content-Type",
-                "application/json"
+            self.wfile.write(
+                b'{"error": "Invalid request data"}'
             )
 
+            return
+
+        # Get only the fields sent by the client
+        update_data = update_request.model_dump(
+            exclude_unset=True      #--> Field provided → Keep it.
+        )                           #--> Field not provided → Exclude it.
+
+        # Check whether at least one field is provided
+        if not update_data:
+
+            self.send_response(400)
+            self.send_header("Content-Type", "application/json")
             self.end_headers()
 
             self.wfile.write(
@@ -513,42 +728,30 @@ class MyHandler(BaseHTTPRequestHandler):
             return
 
         # Update user partially
-
         update_user_partial(
             user_id,
-            data.get("name"),
-            data.get("email")
+            update_data.get("name"),
+            update_data.get("email")
         )
 
         # Get updated user data
-
         updated_user = get_user_by_id(user_id)
 
-        response = {
-            "message": "User partially updated",
-            "id": updated_user[0],
-            "name": updated_user[1],
-            "email": updated_user[2]
-        }
-
-        # Convert response into JSON bytes
-
-        response_data = json.dumps(
-            response
-        ).encode()
-
-        # Send success status
-
-        self.send_response(200)
-
-        self.send_header(
-            "Content-Type",
-            "application/json"
+        # Create response DTO
+        response = UserUpdateResponse(
+            message="User partially updated",
+            id=updated_user[0],
+            name=updated_user[1],
+            email=updated_user[2]
         )
 
-        self.end_headers()
+        response_data = json.dumps(
+            response.model_dump()
+        ).encode()
 
-        # Send response body
+        self.send_response(200)
+        self.send_header("Content-Type", "application/json")
+        self.end_headers()
 
         self.wfile.write(response_data)
 
@@ -557,24 +760,21 @@ class MyHandler(BaseHTTPRequestHandler):
     def do_DELETE(self):
 
         # Get user ID from URL
+        user_id = int(self.path.split("/")[-1])
 
-        user_id = int(
-            self.path.split("/")[-1]
-        )
+        # Authenticate request
+        payload = self.authenticate_request(user_id)
 
-        user = get_user_by_id(user_id)
+        if payload is None:
+            return
 
         # Check whether user exists
+        user = get_user_by_id(user_id)
 
         if user is None:
 
             self.send_response(404)
-
-            self.send_header(
-                "Content-Type",
-                "application/json"
-            )
-
+            self.send_header("Content-Type", "application/json")
             self.end_headers()
 
             self.wfile.write(
@@ -583,35 +783,22 @@ class MyHandler(BaseHTTPRequestHandler):
 
             return
 
-        # Delete the user
-
+        # Delete user
         delete_user(user_id)
 
-        # Create response
-
-        response = {
-            "message": "User deleted successfully",
-            "id": user_id
-        }
-
-        # Convert response into JSON bytes
-
-        response_data = json.dumps(
-            response
-        ).encode()
-
-        # Send success status
-
-        self.send_response(200)
-
-        self.send_header(
-            "Content-Type",
-            "application/json"
+        # Create response DTO
+        response = MessageResponse(
+            message="User deleted successfully",
+            id=user_id
         )
 
-        self.end_headers()
+        response_data = json.dumps(
+            response.model_dump()
+        ).encode()
 
-        # Send response body
+        self.send_response(200)
+        self.send_header("Content-Type", "application/json")
+        self.end_headers()
 
         self.wfile.write(response_data)
 

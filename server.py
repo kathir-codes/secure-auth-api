@@ -44,7 +44,6 @@ create_users_table()
 
 class MyHandler(BaseHTTPRequestHandler):
 
-    # --------------------------------------------------
     # REUSABLE 
     # --------------------------------------------------
 
@@ -79,7 +78,6 @@ class MyHandler(BaseHTTPRequestHandler):
             })
             return None
 
-    # --------------------------------------------------
     # AUTHENTICATION
     # --------------------------------------------------
 
@@ -121,7 +119,6 @@ class MyHandler(BaseHTTPRequestHandler):
 
         return payload
 
-    # --------------------------------------------------
     # GET
     # --------------------------------------------------
 
@@ -184,7 +181,6 @@ class MyHandler(BaseHTTPRequestHandler):
             "error": "Not Found"
         })
 
-    # --------------------------------------------------
     # POST
     # --------------------------------------------------
 
@@ -355,7 +351,6 @@ class MyHandler(BaseHTTPRequestHandler):
             "error": "Not Found"
         })
 
-    # --------------------------------------------------
     # PUT - FULL USER UPDATE
     # --------------------------------------------------
 
@@ -407,7 +402,6 @@ class MyHandler(BaseHTTPRequestHandler):
             response.model_dump()
         )
 
-    # --------------------------------------------------
     # PATCH - PARTIAL USER UPDATE
     # --------------------------------------------------
 
@@ -471,7 +465,6 @@ class MyHandler(BaseHTTPRequestHandler):
             response.model_dump()
         )
 
-    # --------------------------------------------------
     # DELETE USER
     # --------------------------------------------------
 
@@ -508,7 +501,7 @@ class MyHandler(BaseHTTPRequestHandler):
         )
 
 
-# --------------------------------------------------
+
 # START SERVER
 # --------------------------------------------------
 

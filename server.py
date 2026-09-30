@@ -186,6 +186,42 @@ class MyHandler(BaseHTTPRequestHandler):
 
     def do_POST(self):
 
+        # SIGNUP
+        if self.path == "/signup":
+
+            try:
+                data = self.read_json()
+                signup_request = SignupRequest(**data)
+
+            except (ValidationError, ValueError, TypeError):
+                self.send_json(400, {
+                    "error": "Name, email and password are required"
+                })
+                return
+
+            password_hash = hash_password(
+                signup_request.password
+            )
+
+            user_id = create_signup_user(
+                signup_request.name,
+                signup_request.email,
+                password_hash
+            )
+
+            response = SignupResponse(
+                message="User signed up successfully",
+                id=user_id,
+                name=signup_request.name,
+                email=signup_request.email
+            )
+
+            self.send_json(
+                201,
+                response.model_dump()
+            )
+
+            return
         # SIGNIN
         if self.path == "/signin":
 
@@ -231,43 +267,6 @@ class MyHandler(BaseHTTPRequestHandler):
 
             self.send_json(
                 200,
-                response.model_dump()
-            )
-
-            return
-
-        # SIGNUP
-        if self.path == "/signup":
-
-            try:
-                data = self.read_json()
-                signup_request = SignupRequest(**data)
-
-            except (ValidationError, ValueError, TypeError):
-                self.send_json(400, {
-                    "error": "Name, email and password are required"
-                })
-                return
-
-            password_hash = hash_password(
-                signup_request.password
-            )
-
-            user_id = create_signup_user(
-                signup_request.name,
-                signup_request.email,
-                password_hash
-            )
-
-            response = SignupResponse(
-                message="User signed up successfully",
-                id=user_id,
-                name=signup_request.name,
-                email=signup_request.email
-            )
-
-            self.send_json(
-                201,
                 response.model_dump()
             )
 

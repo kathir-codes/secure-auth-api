@@ -1,50 +1,35 @@
+
 from http.server import HTTPServer, BaseHTTPRequestHandler
 import json
 
-from pydantic import ValidationError
+from database import create_users_table
+from auth_utils import verify_access_token
 
-from dto import (
-    SignupRequest,
-    SigninRequest,
-    UpdateUserRequest,
-    PartialUpdateUserRequest,
-    SignupResponse,
-    SigninResponse,
-    UserResponse,
-    MessageResponse,
-    UserUpdateResponse,
-    ForgotPasswordRequest,
-    ResetPasswordRequest
+# Authentication routes
+from routes.auth_routes import (
+    handle_signup,
+    handle_signin,
+    handle_forgot_password,
+    handle_reset_password
 )
 
-from database import (
-    create_users_table,
-    get_all_users,
-    get_user_by_email,
-    get_user_by_id,
-    update_user,
-    update_user_partial,
-    delete_user,
-    create_signup_user,
-    update_user_password
-)
-
-from auth_utils import (
-    hash_password,
-    create_access_token,
-    verify_access_token,
-    create_password_reset_token,
-    verify_password_reset_token
+# User routes
+from routes.user_routes import (
+    handle_get_all_users,
+    handle_get_user,
+    handle_update_user,
+    handle_update_user_partial,
+    handle_delete_user
 )
 
 
-# Initialize database
+# INITIALIZE DATABASE
 create_users_table()
 
 
 class MyHandler(BaseHTTPRequestHandler):
 
-    # REUSABLE 
+    # REUSABLE METHODS
     # --------------------------------------------------
 
     def send_json(self, status_code, data):
@@ -127,53 +112,13 @@ class MyHandler(BaseHTTPRequestHandler):
         # GET ALL USERS
         if self.path == "/users":
 
-            users = get_all_users()
-
-            response = []
-
-            for user in users:
-
-                user_response = UserResponse(
-                    id=user[0],
-                    name=user[1],
-                    email=user[2]
-                )
-
-                response.append(
-                    user_response.model_dump()
-                )
-
-            self.send_json(200, response)
-
+            handle_get_all_users(self)
             return
 
         # GET USER BY ID
         if self.path.startswith("/users/"):
 
-            user_id = self.get_user_id()
-
-            if user_id is None:
-                return
-
-            user = get_user_by_id(user_id)
-
-            if user is None:
-                self.send_json(404, {
-                    "error": "User not found"
-                })
-                return
-
-            response = UserResponse(
-                id=user[0],
-                name=user[1],
-                email=user[2]
-            )
-
-            self.send_json(
-                200,
-                response.model_dump()
-            )
-
+            handle_get_user(self)
             return
 
         # UNKNOWN URL
@@ -189,163 +134,28 @@ class MyHandler(BaseHTTPRequestHandler):
         # SIGNUP
         if self.path == "/signup":
 
-            try:
-                data = self.read_json()
-                signup_request = SignupRequest(**data)
-
-            except (ValidationError, ValueError, TypeError):
-                self.send_json(400, {
-                    "error": "Name, email and password are required"
-                })
-                return
-
-            password_hash = hash_password(
-                signup_request.password
-            )
-
-            user_id = create_signup_user(
-                signup_request.name,
-                signup_request.email,
-                password_hash
-            )
-
-            response = SignupResponse(
-                message="User signed up successfully",
-                id=user_id,
-                name=signup_request.name,
-                email=signup_request.email
-            )
-
-            self.send_json(
-                201,
-                response.model_dump()
-            )
-
+            handle_signup(self)
             return
+
         # SIGNIN
         if self.path == "/signin":
 
-            try:
-                data = self.read_json()
-                signin_request = SigninRequest(**data)
-
-            except (ValidationError, ValueError, TypeError):
-                self.send_json(400, {
-                    "error": "Email and password are required"
-                })
-                return
-
-            user = get_user_by_email(
-                signin_request.email
-            )
-
-            if user is None:
-                self.send_json(401, {
-                    "error": "Invalid email or password"
-                })
-                return
-
-            password_hash = hash_password(
-                signin_request.password
-            )
-
-            if password_hash != user[3]:
-                self.send_json(401, {
-                    "error": "Invalid email or password"
-                })
-                return
-
-            token = create_access_token(user[0])
-
-            response = SigninResponse(
-                message="Signin successful",
-                id=user[0],
-                name=user[1],
-                email=user[2],
-                access_token=token
-            )
-
-            self.send_json(
-                200,
-                response.model_dump()
-            )
-
+            handle_signin(self)
             return
 
         # FORGOT PASSWORD
         if self.path == "/forgot-password":
 
-            try:
-                data = self.read_json()
-                forgot_request = ForgotPasswordRequest(**data)
-
-            except (ValidationError, ValueError, TypeError):
-                self.send_json(400, {
-                    "error": "Email is required"
-                })
-                return
-
-            user = get_user_by_email(
-                forgot_request.email
-            )
-
-            if user is not None:
-
-                reset_token = create_password_reset_token(
-                    user[0]
-                )
-
-                # Development only
-                print("Password reset token:", reset_token)
-
-            self.send_json(200, {
-                "message": "If the account exists, a password reset link has been sent."
-            })
-
+            handle_forgot_password(self)
             return
 
         # RESET PASSWORD
         if self.path == "/reset-password":
 
-            try:
-                data = self.read_json()
-                reset_request = ResetPasswordRequest(**data)
-
-            except (ValidationError, ValueError, TypeError):
-                self.send_json(400, {
-                    "error": "Token and new password are required"
-                })
-                return
-
-            payload = verify_password_reset_token(
-                reset_request.token,
-                reset_request.user_id
-            )
-
-            if payload is None:
-                self.send_json(401, {
-                    "error": "Invalid or expired reset token"
-                })
-                return
-
-            user_id = payload["user_id"]
-
-            password_hash = hash_password(
-                reset_request.new_password
-            )
-
-            update_user_password(
-                user_id,
-                password_hash
-            )
-
-            self.send_json(200, {
-                "message": "Password reset successfully"
-            })
-
+            handle_reset_password(self)
             return
 
-        # UNKNOWN POST URL
+        # UNKNOWN URL
         self.send_json(404, {
             "error": "Not Found"
         })
@@ -355,150 +165,42 @@ class MyHandler(BaseHTTPRequestHandler):
 
     def do_PUT(self):
 
-        user_id = self.get_user_id()
+        if self.path.startswith("/users/"):
 
-        if user_id is None:
+            handle_update_user(self)
             return
 
-        payload = self.authenticate_request(user_id)
-
-        if payload is None:
-            return
-
-        user = get_user_by_id(user_id)
-
-        if user is None:
-            self.send_json(404, {
-                "error": "User not found"
-            })
-            return
-
-        try:
-            data = self.read_json()
-            update_request = UpdateUserRequest(**data)
-
-        except (ValidationError, ValueError, TypeError):
-            self.send_json(400, {
-                "error": "Name and email are required"
-            })
-            return
-
-        update_user(
-            user_id,
-            update_request.name,
-            update_request.email
-        )
-
-        response = UserUpdateResponse(
-            message="User updated successfully",
-            id=user_id,
-            name=update_request.name,
-            email=update_request.email
-        )
-
-        self.send_json(
-            200,
-            response.model_dump()
-        )
+        self.send_json(404, {
+            "error": "Not Found"
+        })
 
     # PATCH - PARTIAL USER UPDATE
     # --------------------------------------------------
 
     def do_PATCH(self):
 
-        user_id = self.get_user_id()
+        if self.path.startswith("/users/"):
 
-        if user_id is None:
+            handle_update_user_partial(self)
             return
 
-        payload = self.authenticate_request(user_id)
-
-        if payload is None:
-            return
-
-        user = get_user_by_id(user_id)
-
-        if user is None:
-            self.send_json(404, {
-                "error": "User not found"
-            })
-            return
-
-        try:
-            data = self.read_json()
-            update_request = PartialUpdateUserRequest(**data)
-
-        except (ValidationError, ValueError, TypeError):
-            self.send_json(400, {
-                "error": "Invalid request data"
-            })
-            return
-
-        update_data = update_request.model_dump(
-            exclude_unset=True
-        )
-
-        if not update_data:
-            self.send_json(400, {
-                "error": "Name or email is required"
-            })
-            return
-
-        update_user_partial(
-            user_id,
-            update_data.get("name"),
-            update_data.get("email")
-        )
-
-        updated_user = get_user_by_id(user_id)
-
-        response = UserUpdateResponse(
-            message="User partially updated",
-            id=updated_user[0],
-            name=updated_user[1],
-            email=updated_user[2]
-        )
-
-        self.send_json(
-            200,
-            response.model_dump()
-        )
+        self.send_json(404, {
+            "error": "Not Found"
+        })
 
     # DELETE USER
     # --------------------------------------------------
 
     def do_DELETE(self):
 
-        user_id = self.get_user_id()
+        if self.path.startswith("/users/"):
 
-        if user_id is None:
+            handle_delete_user(self)
             return
 
-        payload = self.authenticate_request(user_id)
-
-        if payload is None:
-            return
-
-        user = get_user_by_id(user_id)
-
-        if user is None:
-            self.send_json(404, {
-                "error": "User not found"
-            })
-            return
-
-        delete_user(user_id)
-
-        response = MessageResponse(
-            message="User deleted successfully",
-            id=user_id
-        )
-
-        self.send_json(
-            200,
-            response.model_dump()
-        )
-
+        self.send_json(404, {
+            "error": "Not Found"
+        })
 
 
 # START SERVER

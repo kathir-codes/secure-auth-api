@@ -1,0 +1,97 @@
+
+AWSTemplateFormatVersion: '2010-09-09'
+
+Description: Authentication API - ECR and ECS
+
+Resources:
+  AuthApiRepository:
+    Type: AWS::ECR::Repository
+    Properties:
+      RepositoryName: kathir-auth-api
+      ImageTagMutability: MUTABLE
+      ImageScanningConfiguration:
+        ScanOnPush: true
+
+  AuthApiCluster:
+    Type: AWS::ECS::Cluster
+    Properties:
+      ClusterName: authentication-api-cluster-new
+
+  AuthApiTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: authentication-api-task-new
+      NetworkMode: awsvpc
+      RequiresCompatibilities:
+        - FARGATE
+      Cpu: '256'
+      Memory: '512'
+      ExecutionRoleArn: arn:aws:iam::369606757523:role/ecsTaskExecutionRole
+
+      ContainerDefinitions:
+        - Name: authentication-api
+          Image: !Sub '${AuthApiRepository.RepositoryUri}:1.0'
+          Essential: true
+
+          PortMappings:
+            - ContainerPort: 8000
+              Protocol: tcp
+
+          Environment:
+            - Name: DB_HOST
+              Value: aws-0-ap-northeast-1.pooler.supabase.com
+            - Name: DB_PORT
+              Value: '5432'
+            - Name: DB_NAME
+              Value: postgres
+            - Name: DB_USER
+              Value: postgres.xemipvmnottvqyekaqly
+            - Name: DB_PASSWORD
+              Value: meyicloudsolution
+            - Name: JWT_SECRET
+              Value: HlOUCV1ozlQkgPYwx2Y-72DCE2NH73JoQEjBbzzLH3c
+            - Name: GITHUB_CLIENT_ID
+              Value: Ov23li68nJsMiqotaafo
+            - Name: GITHUB_CLIENT_SECRET
+              Value: 0226eed3ebf9f0f9608dc5df5a496515e48822b5
+
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: /ecs/authentication-api
+              awslogs-region: ap-south-1
+              awslogs-stream-prefix: ecs
+
+  AuthApiService:
+    Type: AWS::ECS::Service
+    DependsOn: AuthApiTaskDefinition
+    Properties:
+      ServiceName: authentication-api-service-new
+      Cluster: !Ref AuthApiCluster
+      TaskDefinition: !Ref AuthApiTaskDefinition
+      DesiredCount: 1
+      LaunchType: FARGATE
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          AssignPublicIp: ENABLED
+          Subnets:
+            - subnet-0767a6941f954fa86
+          SecurityGroups:
+            - sg-038cea6c02d85215b
+
+Outputs:
+  ECRRepositoryURI:
+    Description: ECR repository URI
+    Value: !GetAtt AuthApiRepository.RepositoryUri
+
+  ECSClusterName:
+    Description: ECS cluster name
+    Value: !Ref AuthApiCluster
+
+  ECSTaskDefinitionArn:
+    Description: ECS task definition ARN
+    Value: !Ref AuthApiTaskDefinition
+
+  ECSServiceName:
+    Description: ECS service name
+    Value: !GetAtt AuthApiService.Name

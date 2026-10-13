@@ -1,5 +1,5 @@
 from database import get_user_by_email
-from auth_utils import hash_password, create_access_token
+from auth_utils import hash_password, create_access_token, verify_password
 from dto import SigninResponse
 
 
@@ -11,18 +11,14 @@ def signin_service(email, password):
     if not user:
         return None
 
-    # 2. Hash the entered password
-    password_hash = hash_password(password)
-
-    # 3. Compare with stored password hash
-    if password_hash != user[3]:
+    # 2. Verify entered password
+    if not verify_password(password, user[3]):
         return None
 
-    # 4. Generate access token
+    # 3. Generate access token
     access_token = create_access_token(user[0])
 
-    # 5. Prepare response
-    # 5. Prepare response
+    # 4. Prepare response
     response = SigninResponse(
         id=user[0],
         name=user[1],

@@ -10,7 +10,9 @@ from routes.auth_routes import (
     handle_signup,
     handle_signin,
     handle_forgot_password,
-    handle_reset_password
+    handle_reset_password,
+    handle_github_login,
+    handle_github_callback  
 )
 
 # User routes
@@ -31,7 +33,6 @@ class MyHandler(BaseHTTPRequestHandler):
 
     # REUSABLE METHODS
     # --------------------------------------------------
-
     def send_json(self, status_code, data):
 
         self.send_response(status_code)
@@ -62,10 +63,8 @@ class MyHandler(BaseHTTPRequestHandler):
                 "error": "Invalid user ID"
             })
             return None
-
     # AUTHENTICATION
     # --------------------------------------------------
-
     def authenticate_request(self, requested_user_id=None):
 
         authorization = self.headers.get("Authorization")
@@ -103,11 +102,16 @@ class MyHandler(BaseHTTPRequestHandler):
                 return None
 
         return payload
-
     # GET
     # --------------------------------------------------
-
     def do_GET(self):
+        
+        if self.path == "/auth/github":
+            handle_github_login(self)
+            return
+        if self.path.startswith("/auth/github/callback"):
+            handle_github_callback(self)
+            return
 
         # GET ALL USERS
         if self.path == "/users":
@@ -125,15 +129,12 @@ class MyHandler(BaseHTTPRequestHandler):
         self.send_json(404, {
             "error": "Not Found"
         })
-
     # POST
     # --------------------------------------------------
-
     def do_POST(self):
 
         # SIGNUP
         if self.path == "/signup":
-
             handle_signup(self)
             return
 
@@ -159,10 +160,8 @@ class MyHandler(BaseHTTPRequestHandler):
         self.send_json(404, {
             "error": "Not Found"
         })
-
     # PUT - FULL USER UPDATE
     # --------------------------------------------------
-
     def do_PUT(self):
 
         if self.path.startswith("/users/"):
@@ -173,10 +172,8 @@ class MyHandler(BaseHTTPRequestHandler):
         self.send_json(404, {
             "error": "Not Found"
         })
-
     # PATCH - PARTIAL USER UPDATE
     # --------------------------------------------------
-
     def do_PATCH(self):
 
         if self.path.startswith("/users/"):
@@ -187,10 +184,8 @@ class MyHandler(BaseHTTPRequestHandler):
         self.send_json(404, {
             "error": "Not Found"
         })
-
     # DELETE USER
     # --------------------------------------------------
-
     def do_DELETE(self):
 
         if self.path.startswith("/users/"):
@@ -206,10 +201,7 @@ class MyHandler(BaseHTTPRequestHandler):
 # START SERVER
 # --------------------------------------------------
 
-server = HTTPServer(
-    ("localhost", 8000),
-    MyHandler
-)
+server = HTTPServer(("0.0.0.0", 8000),MyHandler)
 
 print("Server running on port 8000")
 

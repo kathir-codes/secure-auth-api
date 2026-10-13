@@ -1,6 +1,7 @@
 import hashlib
 import os
 import jwt
+import secrets
 
 from dotenv import load_dotenv
 
@@ -8,17 +9,31 @@ load_dotenv()
 
 JWT_SECRET = os.getenv("JWT_SECRET")
 
-
 # ---------------- Password Hashing ----------------
 
 def hash_password(password):
 
+    salt = secrets.token_bytes(16)
+
     hash_value = hashlib.sha256(
-        password.encode()
+        salt + password.encode()
     ).hexdigest()
 
-    return hash_value
+    return salt.hex() + ":" + hash_value
 
+# -----------------verify password-----------------
+
+def verify_password(password, stored_value):
+
+    salt_hex, stored_hash = stored_value.split(":")
+
+    salt = bytes.fromhex(salt_hex)
+
+    hash_value = hashlib.sha256(
+        salt + password.encode()
+    ).hexdigest()
+
+    return hash_value == stored_hash
 
 # ---------------- Create JWT Token ----------------
 

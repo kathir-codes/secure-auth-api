@@ -1,9 +1,13 @@
-from database import create_signup_user
+from database import create_signup_user, get_user_by_email
 from auth_utils import hash_password
 from dto import SignupResponse
 
-
 def signup_service(name, email, password):
+
+    existing_user = get_user_by_email(email)
+
+    if existing_user:
+        return None
 
     password_hash = hash_password(password)
 

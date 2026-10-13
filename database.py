@@ -50,6 +50,23 @@ def add_email_unique_constraint():
     connection.commit()
     connection.close()
 
+def create_github_user(name, email):
+    connection = get_connection()
+    cursor = connection.cursor()
+
+    cursor.execute("""
+        INSERT INTO users (name, email, password_hash)
+        VALUES (%s, %s, NULL)
+        RETURNING id
+    """, (name, email))
+
+    user_id = cursor.fetchone()[0]
+
+    connection.commit()
+    connection.close()
+
+    return user_id
+
 # ----------------------- Insert signup user --------------------------
 
 def create_signup_user(name, email, password_hash):

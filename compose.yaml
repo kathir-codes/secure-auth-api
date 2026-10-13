@@ -1,0 +1,7 @@
+services:
+  auth-api:
+    image: 369606757523.dkr.ecr.ap-south-1.amazonaws.com/kathir-test:1.0
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env

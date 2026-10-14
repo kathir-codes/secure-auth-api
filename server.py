@@ -1,4 +1,3 @@
-
 from http.server import HTTPServer, BaseHTTPRequestHandler
 import json
 
@@ -130,7 +129,7 @@ class MyHandler(BaseHTTPRequestHandler):
             "error": "Not Found"
         })
     # POST
-    # --------------------------------------------------
+    # -------------------------------------------------
     def do_POST(self):
 
         # SIGNUP

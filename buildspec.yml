@@ -1,30 +1,37 @@
+
 version: 0.2
 
 phases:
   pre_build:
     commands:
+      - echo Checking ECR repository
+      - |
+        aws ecr describe-repositories \
+          --repository-names authentication-api \
+          --region ap-south-1 >/dev/null 2>&1 || \
+        aws ecr create-repository \
+          --repository-name authentication-api \
+          --image-tag-mutability MUTABLE \
+          --image-scanning-configuration scanOnPush=true \
+          --region ap-south-1
+      - REPOSITORY_URI=$(aws ecr describe-repositories --repository-names authentication-api --region ap-south-1 --query 'repositories[0].repositoryUri' --output text)
       - echo Logging in to Amazon ECR
-      - aws ecr get-login-password --region ap-south-1 | docker login --username AWS --password-stdin 369606757523.dkr.ecr.ap-south-1.amazonaws.com
-      - REPOSITORY_URI=369606757523.dkr.ecr.ap-south-1.amazonaws.com/kathir-test
+      - aws ecr get-login-password --region ap-south-1 | docker login --username AWS --password-stdin "$REPOSITORY_URI"
       - IMAGE_TAG=$CODEBUILD_RESOLVED_SOURCE_VERSION
 
   build:
     commands:
       - echo Building Docker image
-      - docker build -t $REPOSITORY_URI:$IMAGE_TAG .
-      - docker tag $REPOSITORY_URI:$IMAGE_TAG $REPOSITORY_URI:latest
+      - docker build -t "$REPOSITORY_URI:$IMAGE_TAG" .
+      - docker tag "$REPOSITORY_URI:$IMAGE_TAG" "$REPOSITORY_URI:latest"
 
   post_build:
     commands:
       - echo Pushing Docker image to ECR
-      - docker push $REPOSITORY_URI:$IMAGE_TAG
-      - docker push $REPOSITORY_URI:latest
-      - printf '[{"name":"auth-api-container","imageUri":"%s"}]' "$REPOSITORY_URI:$IMAGE_TAG" > imagedefinitions.json
+      - docker push "$REPOSITORY_URI:$IMAGE_TAG"
+      - docker push "$REPOSITORY_URI:latest"
+      - printf '[{"name":"authentication-api","imageUri":"%s"}]' "$REPOSITORY_URI:$IMAGE_TAG" > imagedefinitions.json
 
 artifacts:
   files:
     - imagedefinitions.json
-    # contains:
-#         name — the container name in your ECS task definition.
-#        imageUri — the full ECR image address, including its tag (abc123 here is an example)
-# .....

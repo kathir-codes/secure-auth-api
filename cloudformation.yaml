@@ -1,20 +1,20 @@
+
 AWSTemplateFormatVersion: '2010-09-09'
 
-Description: Authentication API - ECR and ECS
+Description: Authentication API - ECS Deployment
 
 Resources:
-  AuthApiRepository:
-    Type: AWS::ECR::Repository
-    Properties:
-      RepositoryName: kathir-auth-api
-      ImageTagMutability: MUTABLE
-      ImageScanningConfiguration:
-        ScanOnPush: true
 
   AuthApiCluster:
     Type: AWS::ECS::Cluster
     Properties:
       ClusterName: authentication-api-cluster-new
+
+  AuthApiLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: /ecs/authentication-api
+      RetentionInDays: 7
 
   AuthApiTaskDefinition:
     Type: AWS::ECS::TaskDefinition
@@ -29,13 +29,13 @@ Resources:
 
       ContainerDefinitions:
         - Name: authentication-api
-          Image: !Sub '${AuthApiRepository.RepositoryUri}:1.0'
+          Image: 369606757523.dkr.ecr.ap-south-1.amazonaws.com/authentication-api:latest
           Essential: true
 
           PortMappings:
             - ContainerPort: 8000
               Protocol: tcp
-             
+
           Environment:
             - Name: DB_HOST
               Value: aws-0-ap-northeast-1.pooler.supabase.com
@@ -63,13 +63,15 @@ Resources:
 
   AuthApiService:
     Type: AWS::ECS::Service
-    DependsOn: AuthApiTaskDefinition
+    DependsOn:
+      - AuthApiLogGroup
     Properties:
       ServiceName: authentication-api-service-new
       Cluster: !Ref AuthApiCluster
       TaskDefinition: !Ref AuthApiTaskDefinition
       DesiredCount: 1
       LaunchType: FARGATE
+
       NetworkConfiguration:
         AwsvpcConfiguration:
           AssignPublicIp: ENABLED
@@ -79,9 +81,10 @@ Resources:
             - sg-038cea6c02d85215b
 
 Outputs:
+
   ECRRepositoryURI:
-    Description: ECR repository URI
-    Value: !GetAtt AuthApiRepository.RepositoryUri
+    Description: ECR repository URI created by CodeBuild
+    Value: 369606757523.dkr.ecr.ap-south-1.amazonaws.com/authentication-api
 
   ECSClusterName:
     Description: ECS cluster name

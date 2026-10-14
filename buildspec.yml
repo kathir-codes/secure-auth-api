@@ -26,4 +26,5 @@ artifacts:
     - imagedefinitions.json
     # contains:
 #         name — the container name in your ECS task definition.
-#        imageUri — the full ECR image address, including its tag (abc123 here is an example).
+#        imageUri — the full ECR image address, including its tag (abc123 here is an example)
+# .....

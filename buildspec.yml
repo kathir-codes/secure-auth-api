@@ -4,6 +4,12 @@ version: 0.2
 phases:
   pre_build:
     commands:
+      - echo Creating CodeBuild log group if permitted
+      - |
+        aws logs create-log-group \
+          --log-group-name /aws/codebuild/authentication-api-build \
+          --region ap-south-1 2>/dev/null || true
+
       - echo Checking ECR repository
       - |
         aws ecr describe-repositories \
@@ -14,6 +20,7 @@ phases:
           --image-tag-mutability MUTABLE \
           --image-scanning-configuration scanOnPush=true \
           --region ap-south-1
+
       - REPOSITORY_URI=$(aws ecr describe-repositories --repository-names authentication-api --region ap-south-1 --query 'repositories[0].repositoryUri' --output text)
       - echo Logging in to Amazon ECR
       - aws ecr get-login-password --region ap-south-1 | docker login --username AWS --password-stdin "$REPOSITORY_URI"

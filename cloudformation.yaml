@@ -10,12 +10,6 @@ Resources:
     Properties:
       ClusterName: authentication-api-cluster-new
 
-  AuthApiLogGroup:
-    Type: AWS::Logs::LogGroup
-    Properties:
-      LogGroupName: /ecs/authentication-api
-      RetentionInDays: 7
-
   AuthApiTaskDefinition:
     Type: AWS::ECS::TaskDefinition
     Properties:
@@ -44,15 +38,19 @@ Resources:
             - Name: DB_NAME
               Value: postgres
             - Name: DB_USER
-              Value: postgres.xemipvmnottvqyekaqly
+              Value: REPLACE_WITH_DB_USER
+
+          Secrets:
             - Name: DB_PASSWORD
-              Value: meyicloudsolution
+              ValueFrom: REPLACE_WITH_DB_PASSWORD_SECRET_ARN
             - Name: JWT_SECRET
-              Value: HlOUCV1ozlQkgPYwx2Y-72DCE2NH73JoQEjBbzzLH3c
-            - Name: GITHUB_CLIENT_ID
-              Value: Ov23li68nJsMiqotaafo
+              ValueFrom: REPLACE_WITH_JWT_SECRET_ARN
             - Name: GITHUB_CLIENT_SECRET
-              Value: 0226eed3ebf9f0f9608dc5df5a496515e48822b5
+              ValueFrom: REPLACE_WITH_GITHUB_SECRET_ARN
+
+          Environment:
+            - Name: GITHUB_CLIENT_ID
+              Value: REPLACE_WITH_GITHUB_CLIENT_ID
 
           LogConfiguration:
             LogDriver: awslogs
@@ -63,8 +61,6 @@ Resources:
 
   AuthApiService:
     Type: AWS::ECS::Service
-    DependsOn:
-      - AuthApiLogGroup
     Properties:
       ServiceName: authentication-api-service-new
       Cluster: !Ref AuthApiCluster

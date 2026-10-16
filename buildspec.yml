@@ -1,13 +1,13 @@
 
 version: 0.2
-#
+
 phases:
   pre_build:
     commands:
       - echo Logging in to Amazon ECR
-      - REPOSITORY_URI=369606757523.dkr.ecr.ap-south-1.amazonaws.com/kathir-ecr
-      - aws ecr get-login-password --region ap-south-1 | docker login --username AWS --password-stdin 369606757523.dkr.ecr.ap-south-1.amazonaws.com
-      - IMAGE_TAG=$CODEBUILD_RESOLVED_SOURCE_VERSION
+      - REPOSITORY_URI=$ECR_REPOSITORY_URI
+      - aws ecr get-login-password --region "$AWS_DEFAULT_REGION" | docker login --username AWS --password-stdin 369606757523.dkr.ecr.ap-south-1.amazonaws.com
+      - IMAGE_TAG=git-$CODEBUILD_RESOLVED_SOURCE_VERSION
 
   build:
     commands:

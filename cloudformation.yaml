@@ -1,95 +1,234 @@
 
 AWSTemplateFormatVersion: '2010-09-09'
 
-Description: Authentication API - ECS Deployment
+Description: Authentication API - ECR, ECS, CodeBuild and CodePipeline
 
 Resources:
+  AuthApiECRRepository:
+    Type: AWS::ECR::Repository
+    Properties:
+      RepositoryName: kathir-authentication-api
+      ImageTagMutability: IMMUTABLE
+      ImageScanningConfiguration:
+        ScanOnPush: true
+      LifecyclePolicy:
+        LifecyclePolicyText: |
+          {
+            "rules": [
+              {
+                "rulePriority": 1,
+                "description": "Keep the latest 20 tagged images",
+                "selection": {
+                  "tagStatus": "tagged",
+                  "tagPrefixList": ["git-"],
+                  "countType": "imageCountMoreThan",
+                  "countNumber": 20
+                },
+                "action": {
+                  "type": "expire"
+                }
+              }
+            ]
+          }
+      Tags:
+        - Key: Project
+          Value: Meyi Learnings
+        - Key: CreatedBy
+          Value: kathir
+        - Key: aws-apn-id
+          Value: 'pc:eyl8vo7kcwv8k9qctzbathhiq'
 
   AuthApiCluster:
     Type: AWS::ECS::Cluster
     Properties:
-      ClusterName: authentication-api-cluster-new
+      ClusterName: kathir-authentication-api-cluster
+      ClusterSettings:
+        - Name: containerInsights
+          Value: enabled
+      Tags:
+        - Key: Project
+          Value: Meyi Learnings
+        - Key: CreatedBy
+          Value: kathir
+        - Key: aws-apn-id
+          Value: 'pc:eyl8vo7kcwv8k9qctzbathhiq'
 
-  AuthApiTaskDefinition:
-    Type: AWS::ECS::TaskDefinition
+  AuthApiCodeBuildRole:
+    Type: AWS::IAM::Role
     Properties:
-      Family: authentication-api-task-new
-      NetworkMode: awsvpc
-      RequiresCompatibilities:
-        - FARGATE
-      Cpu: '256'
-      Memory: '512'
-      ExecutionRoleArn: arn:aws:iam::369606757523:role/ecsTaskExecutionRole
+      RoleName: kathir-authentication-api-codebuild-role
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: codebuild.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryPowerUser
+        - arn:aws:iam::aws:policy/CloudWatchLogsFullAccess
+      Policies:
+        - PolicyName: CodePipelineArtifactAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - s3:GetObject
+                  - s3:GetObjectVersion
+                  - s3:PutObject
+                Resource: arn:aws:s3:::codepipeline-ap-south-1-d60f41c3c545-49e7-92fe-872d172a623d/*
+      Tags:
+        - Key: Project
+          Value: Meyi Learnings
+        - Key: CreatedBy
+          Value: kathir
+        - Key: aws-apn-id
+          Value: 'pc:eyl8vo7kcwv8k9qctzbathhiq'
 
-      ContainerDefinitions:
-        - Name: authentication-api
-          Image: 369606757523.dkr.ecr.ap-south-1.amazonaws.com/authentication-api:latest
-          Essential: true
-
-          PortMappings:
-            - ContainerPort: 8000
-              Protocol: tcp
-
-          Environment:
-            - Name: DB_HOST
-              Value: aws-0-ap-northeast-1.pooler.supabase.com
-            - Name: DB_PORT
-              Value: '5432'
-            - Name: DB_NAME
-              Value: postgres
-            - Name: DB_USER
-              Value: REPLACE_WITH_DB_USER
-
-          Secrets:
-            - Name: DB_PASSWORD
-              ValueFrom: REPLACE_WITH_DB_PASSWORD_SECRET_ARN
-            - Name: JWT_SECRET
-              ValueFrom: REPLACE_WITH_JWT_SECRET_ARN
-            - Name: GITHUB_CLIENT_SECRET
-              ValueFrom: REPLACE_WITH_GITHUB_SECRET_ARN
-
-          Environment:
-            - Name: GITHUB_CLIENT_ID
-              Value: REPLACE_WITH_GITHUB_CLIENT_ID
-
-          LogConfiguration:
-            LogDriver: awslogs
-            Options:
-              awslogs-group: /ecs/authentication-api
-              awslogs-region: ap-south-1
-              awslogs-stream-prefix: ecs
-
-  AuthApiService:
-    Type: AWS::ECS::Service
+  AuthApiBuildProject:
+    Type: AWS::CodeBuild::Project
     Properties:
-      ServiceName: authentication-api-service-new
-      Cluster: !Ref AuthApiCluster
-      TaskDefinition: !Ref AuthApiTaskDefinition
-      DesiredCount: 1
-      LaunchType: FARGATE
+      Name: kathir-authentication-api-build
+      ServiceRole: !GetAtt AuthApiCodeBuildRole.Arn
+      Artifacts:
+        Type: CODEPIPELINE
+      Source:
+        Type: CODEPIPELINE
+        BuildSpec: buildspec.yml
+      Environment:
+        Type: LINUX_CONTAINER
+        ComputeType: BUILD_GENERAL1_SMALL
+        Image: aws/codebuild/standard:7.0
+        PrivilegedMode: true
+        EnvironmentVariables:
+          - Name: AWS_DEFAULT_REGION
+            Value: !Ref AWS::Region
+          - Name: ECR_REPOSITORY_URI
+            Value: !GetAtt AuthApiECRRepository.RepositoryUri
+      LogsConfig:
+        CloudWatchLogs:
+          Status: ENABLED
+          GroupName: kathir-log
+      Tags:
+        - Key: Project
+          Value: Meyi Learnings
+        - Key: CreatedBy
+          Value: kathir
+        - Key: aws-apn-id
+          Value: 'pc:eyl8vo7kcwv8k9qctzbathhiq'
 
-      NetworkConfiguration:
-        AwsvpcConfiguration:
-          AssignPublicIp: ENABLED
-          Subnets:
-            - subnet-0767a6941f954fa86
-          SecurityGroups:
-            - sg-038cea6c02d85215b
+  AuthApiCodePipelineRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: AWSCodePipelineServiceRole-ap-south-1-kathir-auth-api-pipeline
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: codepipeline.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: AuthApiPipelineAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - codebuild:StartBuild
+                  - codebuild:BatchGetBuilds
+                Resource: !GetAtt AuthApiBuildProject.Arn
+
+              - Effect: Allow
+                Action:
+                  - s3:GetBucketVersioning
+                  - s3:GetBucketLocation
+                  - s3:ListBucket
+                Resource: arn:aws:s3:::codepipeline-ap-south-1-d60f41c3c545-49e7-92fe-872d172a623d
+
+              - Effect: Allow
+                Action:
+                  - s3:GetObject
+                  - s3:GetObjectVersion
+                  - s3:PutObject
+                Resource: arn:aws:s3:::codepipeline-ap-south-1-d60f41c3c545-49e7-92fe-872d172a623d/*
+
+              - Effect: Allow
+                Action:
+                  - codeconnections:UseConnection
+                  - codestar-connections:UseConnection
+                Resource: arn:aws:codeconnections:ap-south-1:369606757523:connection/379b9815-2c32-437d-9a4c-5229a75f0249
+      Tags:
+        - Key: Project
+          Value: Meyi Learnings
+        - Key: CreatedBy
+          Value: kathir
+        - Key: aws-apn-id
+          Value: 'pc:eyl8vo7kcwv8k9qctzbathhiq'
+
+  AuthApiPipeline:
+    Type: AWS::CodePipeline::Pipeline
+    Properties:
+      Name: kathir-auth-api-pipeline
+      RoleArn: !GetAtt AuthApiCodePipelineRole.Arn
+      ArtifactStore:
+        Type: S3
+        Location: codepipeline-ap-south-1-d60f41c3c545-49e7-92fe-872d172a623d
+      Stages:
+        - Name: Source
+          Actions:
+            - Name: GitHubSource
+              ActionTypeId:
+                Category: Source
+                Owner: AWS
+                Provider: CodeStarSourceConnection
+                Version: '1'
+              Configuration:
+                ConnectionArn: arn:aws:codeconnections:ap-south-1:369606757523:connection/379b9815-2c32-437d-9a4c-5229a75f0249
+                FullRepositoryId: kathir-codes/secure-auth-api
+                BranchName: main
+                OutputArtifactFormat: CODE_ZIP
+              OutputArtifacts:
+                - Name: SourceArtifact
+              RunOrder: 1
+
+        - Name: Build
+          Actions:
+            - Name: BuildAndPushImage
+              ActionTypeId:
+                Category: Build
+                Owner: AWS
+                Provider: CodeBuild
+                Version: '1'
+              Configuration:
+                ProjectName: !Ref AuthApiBuildProject
+              InputArtifacts:
+                - Name: SourceArtifact
+              OutputArtifacts:
+                - Name: BuildArtifact
+              RunOrder: 1
+      Tags:
+        - Key: Project
+          Value: Meyi Learnings
+        - Key: CreatedBy
+          Value: kathir
+        - Key: aws-apn-id
+          Value: 'pc:eyl8vo7kcwv8k9qctzbathhiq'
 
 Outputs:
-
   ECRRepositoryURI:
-    Description: ECR repository URI created by CodeBuild
-    Value: 369606757523.dkr.ecr.ap-south-1.amazonaws.com/authentication-api
+    Description: ECR repository URI
+    Value: !GetAtt AuthApiECRRepository.RepositoryUri
 
   ECSClusterName:
-    Description: ECS cluster name
+    Description: ECS Cluster Name
     Value: !Ref AuthApiCluster
 
-  ECSTaskDefinitionArn:
-    Description: ECS task definition ARN
-    Value: !Ref AuthApiTaskDefinition
+  CodeBuildProjectName:
+    Description: CodeBuild project name
+    Value: !Ref AuthApiBuildProject
 
-  ECSServiceName:
-    Description: ECS service name
-    Value: !GetAtt AuthApiService.Name
+  CodePipelineName:
+    Description: CodePipeline name
+    Value: !Ref AuthApiPipeline

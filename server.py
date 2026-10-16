@@ -111,6 +111,10 @@ class MyHandler(BaseHTTPRequestHandler):
         if self.path.startswith("/auth/github/callback"):
             handle_github_callback(self)
             return
+        if self.path == "/health":
+            return {
+                "status":"ok"
+            }
 
         # GET ALL USERS
         if self.path == "/users":

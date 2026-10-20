@@ -51,7 +51,7 @@
               Value: kathir
             - Key: aws-apn-id
               Value: 'pc:eyl8vo7kcwv8k9qctzbathhiq'
-    #-------------- create TaskDefinition ---------------------
+    #-------------- create TaskDefinition --------------------------------
       AuthApiTaskDefinition:
         Type: AWS::ECS::TaskDefinition
         Properties:
@@ -64,7 +64,7 @@
           ExecutionRoleArn: !GetAtt AuthApiTaskExecutionRole.Arn
           ContainerDefinitions:
             - Name: authentication-api
-              Image: !Sub '${AuthApiRepository.RepositoryUri}:latest'
+              Image: !Sub '${AuthApiRepository.RepositoryUri}:api'
               Essential: true
               PortMappings:
                 - ContainerPort: 8000

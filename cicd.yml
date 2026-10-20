@@ -147,7 +147,7 @@ Resources:
               - Effect: Allow
                 Action:
                   - ecs:TagResource
-                Resource: '*'
+                Resource: !Sub "arn:${AWS::Partition}:ecs:${AWS::Region}:${AWS::AccountId}:task-definition/*"
                 Condition:
                   StringEquals:
                     ecs:CreateAction: RegisterTaskDefinition
@@ -163,7 +163,6 @@ Resources:
                         Fn::ImportValue: AuthApi-ECSClusterName
                       ServiceName:
                         Fn::ImportValue: AuthApi-ServiceName
-
 
               # Allow passing the ECS task execution role
               - Effect: Allow

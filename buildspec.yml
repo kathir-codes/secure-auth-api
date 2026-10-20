@@ -16,8 +16,8 @@ phases:
   post_build:
     commands:
       - docker push "$REPOSITORY_URI:$IMAGE_TAG"
-      - docker tag "$REPOSITORY_URI:$IMAGE_TAG" "$REPOSITORY_URI:latest"
-      - docker push "$REPOSITORY_URI:latest"
+      - docker tag "$REPOSITORY_URI:$IMAGE_TAG" "$REPOSITORY_URI:api"
+      - docker push "$REPOSITORY_URI:api"
       - printf '[{"name":"authentication-api","imageUri":"%s"}]' "$REPOSITORY_URI:$IMAGE_TAG" > imagedefinitions.json
 
 artifacts:

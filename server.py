@@ -112,9 +112,10 @@ class MyHandler(BaseHTTPRequestHandler):
             handle_github_callback(self)
             return
         if self.path == "/health":
-            return {
-                "status":"ok"
-            }
+            self.send_json(200, {
+                "status": "ok-v1"
+            })
+            return
 
         # GET ALL USERS
         if self.path == "/users":
@@ -216,3 +217,4 @@ server.serve_forever()
 #--- checking 2 ---
 #----checing 3----
 #----checking 4----
+#----chec

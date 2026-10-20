@@ -1,7 +1,22 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Description: Authentication API CI/CD pipeline
-
+#------------------ create code build role ------------------------------------
 Resources:
+  
+  ArtifactBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      VersioningConfiguration:
+        Status: Enabled
+      Tags:
+        - Key: Project
+          Value: Meyi Learnings
+        - Key: CreatedBy
+          Value: kathir
+        - Key: aws-apn-id
+          Value: 'pc:eyl8vo7kcwv8k9qctzbathhiq'
+
+
   AuthApiCodeBuildRole:
     Type: AWS::IAM::Role
     Properties:
@@ -12,8 +27,10 @@ Resources:
             Principal:
               Service: codebuild.amazonaws.com
             Action: sts:AssumeRole
+
       ManagedPolicyArns:
         - arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryPowerUser
+
       Policies:
         - PolicyName: CodeBuildLogsAndArtifacts
           PolicyDocument:
@@ -23,14 +40,15 @@ Resources:
                 Action:
                   - logs:CreateLogStream
                   - logs:PutLogEvents
-                Resource: '*'
+                Resource: !Sub 'arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:kathir-log:log-stream:*'
+
               - Effect: Allow
                 Action:
                   - s3:GetObject
                   - s3:GetObjectVersion
                   - s3:PutObject
-                Resource: arn:aws:s3:::codepipeline-ap-south-1-d60f41c3c545-49e7-92fe-872d172a623d/*
-
+                Resource: !Sub '${ArtifactBucket.Arn}/*'
+#----------------------- create code build -----------------------------------
   AuthApiBuildProject:
     Type: AWS::CodeBuild::Project
     Properties:
@@ -63,13 +81,13 @@ Resources:
           Value: kathir
         - Key: aws-apn-id
           Value: 'pc:eyl8vo7kcwv8k9qctzbathhiq'
-
+# --------------- AWS + Github --------------------
   GitHubConnection:
     Type: AWS::CodeStarConnections::Connection
     Properties:
       ConnectionName: kathir-github-connection
       ProviderType: GitHub
-
+# --------------- create code pipeline role -------
   AuthApiCodePipelineRole:
     Type: AWS::IAM::Role
     Properties:
@@ -98,28 +116,44 @@ Resources:
                 Action:
                   - s3:GetBucketVersioning
                   - s3:GetBucketLocation
+                  - s3:GetBucketAcl
                   - s3:ListBucket
-                Resource: arn:aws:s3:::codepipeline-ap-south-1-d60f41c3c545-49e7-92fe-872d172a623d
+                Resource: !GetAtt ArtifactBucket.Arn
 
               - Effect: Allow
                 Action:
                   - s3:GetObject
                   - s3:GetObjectVersion
                   - s3:PutObject
-                Resource: arn:aws:s3:::codepipeline-ap-south-1-d60f41c3c545-49e7-92fe-872d172a623d/*
+                  - s3:PutObjectAcl
+                Resource: !Sub '${ArtifactBucket.Arn}/*'
 
               # Use the GitHub connection
               - Effect: Allow
                 Action:
                   - codeconnections:UseConnection
-                  - codestar-connections:UseConnection
-                Resource: !Ref GitHubConnection
+                Resource: !Ref GitHubConnection 
 
               # Full ECS permissions
               - Effect: Allow
                 Action:
-                  - ecs:*
+                  - ecs:DescribeServices
+                  - ecs:DescribeTaskDefinition
+                  - ecs:RegisterTaskDefinition
+                  - ecs:DescribeClusters
                 Resource: '*'
+              
+              - Effect: Allow
+                Action:
+                  - ecs:UpdateService
+                Resource:
+                  Fn::Sub:
+                    - 'arn:${AWS::Partition}:ecs:${AWS::Region}:${AWS::AccountId}:service/${ClusterName}/${ServiceName}'
+                    - ClusterName:
+                        Fn::ImportValue: AuthApi-ECSClusterName
+                      ServiceName:
+                        Fn::ImportValue: AuthApi-ServiceName
+
 
               # Allow passing the ECS task execution role
               - Effect: Allow
@@ -130,6 +164,7 @@ Resources:
                 Condition:
                   StringEquals:
                     iam:PassedToService: ecs-tasks.amazonaws.com
+#--------------- create code pipeline ----------------------------
   AuthApiPipeline:
     Type: AWS::CodePipeline::Pipeline
     Properties:
@@ -137,7 +172,7 @@ Resources:
       RoleArn: !GetAtt AuthApiCodePipelineRole.Arn
       ArtifactStore:
         Type: S3
-        Location: codepipeline-ap-south-1-d60f41c3c545-49e7-92fe-872d172a623d
+        Location: !Ref ArtifactBucket
       Stages:
         - Name: Source
           Actions:

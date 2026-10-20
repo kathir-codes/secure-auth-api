@@ -143,6 +143,16 @@ Resources:
                   - ecs:DescribeClusters
                 Resource: '*'
               
+
+              - Effect: Allow
+                Action:
+                  - ecs:TagResource
+                Resource: '*'
+                Condition:
+                  StringEquals:
+                    ecs:CreateAction: RegisterTaskDefinition
+
+
               - Effect: Allow
                 Action:
                   - ecs:UpdateService

@@ -108,7 +108,7 @@
           ServiceName: kathir-authentication-api-service
           Cluster: !Ref AuthApiCluster
           TaskDefinition: !Ref AuthApiTaskDefinition
-          DesiredCount: 0
+          DesiredCount: 1
           LaunchType: FARGATE
           NetworkConfiguration:
             AwsvpcConfiguration:

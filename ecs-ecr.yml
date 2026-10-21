@@ -1,148 +1,250 @@
-    AWSTemplateFormatVersion: '2010-09-09'
-    Description: Authentication API ECR and ECS infrastructure
-    #-------------- create ECR ---------------------
-    Resources:
-      AuthApiRepository:
-        Type: AWS::ECR::Repository
-        Properties:
-          RepositoryName: kathir-authentication-api
-          ImageTagMutability: MUTABLE
-          ImageScanningConfiguration:
-            ScanOnPush: true
-          Tags:
-            - Key: Project
-              Value: Meyi Learnings
-            - Key: CreatedBy
-              Value: kathir
-            - Key: aws-apn-id
-              Value: 'pc:eyl8vo7kcwv8k9qctzbathhiq'
-    #-------------- create ECS cluster ---------------------
-      AuthApiCluster:
-        Type: AWS::ECS::Cluster
-        Properties:
-          ClusterName: kathir-authentication-api-cluster
-          ClusterSettings:
-            - Name: containerInsights
-              Value: enabled
-          Tags:
-            - Key: Project
-              Value: Meyi Learnings 
-            - Key: CreatedBy
-              Value: kathir
-            - Key: aws-apn-id
-              Value: 'pc:eyl8vo7kcwv8k9qctzbathhiq'
-    #-------------- create TaskExecutionRole ---------------------
-      AuthApiTaskExecutionRole:
-        Type: AWS::IAM::Role
-        Properties:
-          AssumeRolePolicyDocument:
-            Version: '2012-10-17'
-            Statement:
-              - Effect: Allow
-                Principal:
-                  Service: ecs-tasks.amazonaws.com
-                Action: sts:AssumeRole
-          ManagedPolicyArns:
-            - arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy
-          Tags:
-            - Key: Project
-              Value: Meyi Learnings
-            - Key: CreatedBy
-              Value: kathir
-            - Key: aws-apn-id
-              Value: 'pc:eyl8vo7kcwv8k9qctzbathhiq'
-    #-------------- create TaskDefinition --------------------------------
-      AuthApiTaskDefinition:
-        Type: AWS::ECS::TaskDefinition
-        Properties:
-          Family: kathir-authentication-api
-          NetworkMode: awsvpc
-          RequiresCompatibilities:
-            - FARGATE
-          Cpu: '256'
-          Memory: '512'
-          ExecutionRoleArn: !GetAtt AuthApiTaskExecutionRole.Arn
-          ContainerDefinitions:
-            - Name: authentication-api
-              Image: !Sub '${AuthApiRepository.RepositoryUri}:api'
-              Essential: true
-              PortMappings:
-                - ContainerPort: 8000
-                  Protocol: tcp
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Authentication API ECR and ECS infrastructure
+#-------------- create ECR ---------------------
+Resources:
+  AuthApiRepository:
+    Type: AWS::ECR::Repository
+    Properties:
+      RepositoryName: kathir-authentication-api
+      ImageTagMutability: MUTABLE
+      ImageScanningConfiguration:
+        ScanOnPush: true
+      Tags:
+        - Key: Project
+          Value: Meyi Learnings
+        - Key: CreatedBy
+          Value: kathir
+        - Key: aws-apn-id
+          Value: 'pc:eyl8vo7kcwv8k9qctzbathhiq'
+#-------------- create ECS cluster ---------------------
+  AuthApiCluster:
+    Type: AWS::ECS::Cluster
+    Properties:
+      ClusterName: kathir-authentication-api-cluster
+      ClusterSettings:
+        - Name: containerInsights
+          Value: enabled
+      Tags:
+        - Key: Project
+          Value: Meyi Learnings 
+        - Key: CreatedBy
+          Value: kathir
+        - Key: aws-apn-id
+          Value: 'pc:eyl8vo7kcwv8k9qctzbathhiq'
+#-------------- create TaskExecutionRole ---------------------
+  AuthApiTaskExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ecs-tasks.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy
+      Tags:
+        - Key: Project
+          Value: Meyi Learnings
+        - Key: CreatedBy
+          Value: kathir
+        - Key: aws-apn-id
+          Value: 'pc:eyl8vo7kcwv8k9qctzbathhiq'
+#-------------- create TaskDefinition --------------------------------
+  AuthApiTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: kathir-authentication-api
+      NetworkMode: awsvpc
+      RequiresCompatibilities:
+        - FARGATE
+      Cpu: '256'
+      Memory: '512'
+      ExecutionRoleArn: !GetAtt AuthApiTaskExecutionRole.Arn
+      ContainerDefinitions:
+        - Name: authentication-api
+          Image: !Sub '${AuthApiRepository.RepositoryUri}:api'
+          Essential: true
+          PortMappings:
+            - ContainerPort: 8000
+              Protocol: tcp
 
-              Environment:
-                - Name: DB_HOST
-                  Value: aws-0-ap-northeast-1.pooler.supabase.com
-                - Name: DB_PORT
-                  Value: '5432'
-                - Name: DB_NAME
-                  Value: postgres
-                - Name: DB_USER
-                  Value: postgres.xemipvmnottvqyekaqly
-                - Name: DB_PASSWORD
-                  Value: meyicloudsolution
-                - Name: JWT_SECRET
-                  Value: HlOUCV1ozlQkgPYwx2Y-72DCE2NH73JoQEjBbzzLH3c
-                - Name: GITHUB_CLIENT_ID
-                  Value: Ov23li68nJsMiqotaafo
-                - Name: GITHUB_CLIENT_SECRET
-                  Value: 0226eed3ebf9f0f9608dc5df5a496515e48822b5
+          Environment:
+            - Name: DB_HOST
+              Value: aws-0-ap-northeast-1.pooler.supabase.com
+            - Name: DB_PORT
+              Value: '5432'
+            - Name: DB_NAME
+              Value: postgres
+            - Name: DB_USER
+              Value: postgres.xemipvmnottvqyekaqly
+            - Name: DB_PASSWORD
+              Value: meyicloudsolution
+            - Name: JWT_SECRET
+              Value: HlOUCV1ozlQkgPYwx2Y-72DCE2NH73JoQEjBbzzLH3c
+            - Name: GITHUB_CLIENT_ID
+              Value: Ov23li68nJsMiqotaafo
+            - Name: GITHUB_CLIENT_SECRET
+              Value: 0226eed3ebf9f0f9608dc5df5a496515e48822b5
 
-              LogConfiguration:
-                LogDriver: awslogs
-                Options:
-                  awslogs-group: kathir-log
-                  awslogs-region: !Ref AWS::Region
-                  awslogs-stream-prefix: api
-          Tags:
-            - Key: Project
-              Value: Meyi Learnings
-            - Key: CreatedBy
-              Value: kathir
-            - Key: aws-apn-id
-              Value: 'pc:eyl8vo7kcwv8k9qctzbathhiq'
-    #-------------- create ECS Service ---------------------
-      AuthApiService:
-        Type: AWS::ECS::Service
-        Properties:
-          ServiceName: kathir-authentication-api-service
-          Cluster: !Ref AuthApiCluster
-          TaskDefinition: !Ref AuthApiTaskDefinition
-          DesiredCount: 1
-          LaunchType: FARGATE
-          NetworkConfiguration:
-            AwsvpcConfiguration:
-              AssignPublicIp: ENABLED
-              Subnets:
-                - subnet-0269fc851ec11c5f9
-                - subnet-0767a6941f954fa86
-              SecurityGroups:
-                - sg-008190ed0410ec635
-          Tags:
-            - Key: Project
-              Value: Meyi Learnings
-            - Key: CreatedBy
-              Value: kathir
-            - Key: aws-apn-id
-              Value: 'pc:eyl8vo7kcwv8k9qctzbathhiq'
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: kathir-log
+              awslogs-region: !Ref AWS::Region
+              awslogs-stream-prefix: api
+      Tags:
+        - Key: Project
+          Value: Meyi Learnings
+        - Key: CreatedBy
+          Value: kathir
+        - Key: aws-apn-id
+          Value: 'pc:eyl8vo7kcwv8k9qctzbathhiq'
 
-    Outputs:
-      RepositoryUri:
-        Value: !GetAtt AuthApiRepository.RepositoryUri
-        Export:
-          Name: AuthApi-RepositoryUri
+  
+# ALB security group
+  AuthApiAlbSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Allow HTTP access to Authentication API ALB
+      VpcId: vpc-0348721412c74b301
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: 0.0.0.0/0
+      Tags:
+        - Key: Name
+          Value: authentication-api-alb-sg
+        - Key: Project
+          Value: Meyi Learnings
+        - Key: CreatedBy
+          Value: kathir
+        - Key: aws-apn-id
+          Value: 'pc:eyl8vo7kcwv8k9qctzbathhiq'
 
-      ECSClusterName:
-        Value: !Ref AuthApiCluster
-        Export:
-          Name: AuthApi-ECSClusterName
+  AuthApiLoadBalancer:
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    Properties:
+      Name: kathir-authentication-api-alb
+      Scheme: internet-facing
+      Type: application
+      IpAddressType: ipv4
+      Subnets:
+        - subnet-0767a6941f954fa86 # ap-south-1a
+        - subnet-00a2ebba8bacb0f15 # ap-south-1b
+      SecurityGroups:
+        - !GetAtt AuthApiAlbSecurityGroup.GroupId
+      Tags:
+        - Key: Project
+          Value: Meyi Learnings
+        - Key: CreatedBy
+          Value: kathir
+        - Key: aws-apn-id
+          Value: 'pc:eyl8vo7kcwv8k9qctzbathhiq'
 
-      ServiceName:
-        Value: !GetAtt AuthApiService.Name
-        Export:
-          Name: AuthApi-ServiceName
+  # Target group for ECS Fargate tasks
+  AuthApiTargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      Name: kathir-auth-api-tg
+      VpcId: vpc-0348721412c74b301
+      Protocol: HTTP
+      Port: 8000
+      TargetType: ip
+      HealthCheckEnabled: true
+      HealthCheckProtocol: HTTP
+      HealthCheckPort: traffic-port
+      HealthCheckPath: /health
+      Matcher:
+        HttpCode: '200'
+      Tags:
+        - Key: Project
+          Value: Meyi Learnings
+        - Key: CreatedBy
+          Value: kathir
+        - Key: aws-apn-id
+          Value: 'pc:eyl8vo7kcwv8k9qctzbathhiq'
 
-      TaskExecutionRoleArn:
-        Value: !GetAtt AuthApiTaskExecutionRole.Arn
-        Export:
-          Name: AuthApi-TaskExecutionRoleArn
+  AuthApiEcsIngressFromAlb:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      GroupId: sg-008190ed0410ec635
+      IpProtocol: tcp
+      FromPort: 8000
+      ToPort: 8000
+      SourceSecurityGroupId: !GetAtt AuthApiAlbSecurityGroup.GroupId
+      Description: Allow ALB to reach Authentication API
+
+  # Listener: ALB port 80 -> target group port 8000
+  AuthApiListener:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      LoadBalancerArn: !Ref AuthApiLoadBalancer
+      Protocol: HTTP
+      Port: 80
+      DefaultActions:
+        - Type: forward
+          TargetGroupArn: !Ref AuthApiTargetGroup
+      Tags:
+        - Key: Project
+          Value: Meyi Learnings
+        - Key: CreatedBy
+          Value: kathir
+        - Key: aws-apn-id
+          Value: 'pc:eyl8vo7kcwv8k9qctzbathhiq'
+
+#-------------- create ECS Service ---------------------
+  AuthApiService:
+    Type: AWS::ECS::Service
+    DependsOn:
+      - AuthApiListener
+      - AuthApiEcsIngressFromAlb
+    Properties:
+      ServiceName: kathir-authentication-api-service
+      Cluster: !Ref AuthApiCluster
+      TaskDefinition: !Ref AuthApiTaskDefinition
+      DesiredCount: 1
+      LaunchType: FARGATE
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          AssignPublicIp: ENABLED
+          Subnets:
+            - subnet-0767a6941f954fa86  # ap-south-1a
+            - subnet-00a2ebba8bacb0f15  # ap-south-1b
+          SecurityGroups:
+            - sg-008190ed0410ec635
+      LoadBalancers:
+        - TargetGroupArn: !Ref AuthApiTargetGroup
+          ContainerName: authentication-api
+          ContainerPort: 8000
+          
+      Tags:
+        - Key: Project
+          Value: Meyi Learnings
+        - Key: CreatedBy
+          Value: kathir
+        - Key: aws-apn-id
+          Value: 'pc:eyl8vo7kcwv8k9qctzbathhiq'
+
+Outputs:
+  RepositoryUri:
+    Value: !GetAtt AuthApiRepository.RepositoryUri
+    Export:
+      Name: AuthApi-RepositoryUri
+
+  ECSClusterName:
+    Value: !Ref AuthApiCluster
+    Export:
+      Name: AuthApi-ECSClusterName
+
+  ServiceName:
+    Value: !GetAtt AuthApiService.Name
+    Export:
+      Name: AuthApi-ServiceName
+
+  TaskExecutionRoleArn:
+    Value: !GetAtt AuthApiTaskExecutionRole.Arn
+    Export:
+      Name: AuthApi-TaskExecutionRoleArn

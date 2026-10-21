@@ -151,7 +151,7 @@ Resources:
       Name: kathir-auth-api-tg
       VpcId: vpc-0348721412c74b301
       Protocol: HTTP
-      Port: 8000
+      Port: 8000   # Target group port
       TargetType: ip
       HealthCheckEnabled: true
       HealthCheckProtocol: HTTP
